@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Tab</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+        textarea {
+            width: 100%;
+            resize: none;
+            font-family: monospace;
+            font-size: 14px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>Question 1: Preprocessing</h1>
+    <textarea id="codeArea1" readonly>
+from google.colab import drive
+import os
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+import nltk
+
+drive.mount('/content/drive')
+
+nltk.download('punkt')
+nltk.download('stopwords')
+
+stop_words = set(stopwords.words('english'))
+porter = PorterStemmer()
+
+def preprocess_text(text):
+    tokens = word_tokenize(text.lower())
+
+    processed_tokens = [porter.stem(token) for token in tokens if token.isalnum() and token not in stop_words]
+    
+    return processed_tokens
+
+def process_files_in_directory(directory_path):
+    processed_data = {}
+    
+    for filename in sorted(os.listdir(directory_path)):
+        file_path = os.path.join(directory_path, filename)
+        
+        if os.path.isfile(file_path):
+            with open(file_path, 'r', encoding='utf-8') as file:
+                text = file.read()
+                processed_data[filename] = preprocess_text(text)
+    
+    return processed_data
+
+# Example usage:
+# Replace with your actual directory path within Google Drive
+directory_path = "/content/drive/MyDrive/YourFolderName"  
+processed_files = process_files_in_directory(directory_path)
+
+# Display processed data for each file
+for filename, tokens in processed_files.items():
+    print(f"{filename}: {tokens[:10]}...")  # Show the first 10 tokens as a sample
+    </textarea>
+    
+    <h1>Question 2: Sort-Based Indexing</h1>
+    <textarea id="codeArea2" readonly>
+!pip install nltk
+import os
+from nltk.corpus import stopwords
+import nltk
+
+nltk.download('stopwords')
+
+stop_words = set(stopwords.words('english'))
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+import os
+
+folder_path = '/content/drive/MyDrive/Colab Notebooks/File2'
+
+file_names = os.listdir(folder_path)
+print(f"Total files found: {len(file_names)}")
+
+def read_files(folder_path):
+    documents = []
+    file_names = os.listdir(folder_path)
+
+    for file_name in file_names:
+        file_path = os.path.join(folder_path, file_name)
+        with open(file_path, 'r', encoding='utf-8') as file:
+            documents.append(file.read())
+
+    return documents
+
+documents = read_files(folder_path)
+print(f"Total documents read: {len(documents)}")
+
+def tokenize(document):
+
+    document_clean = re.sub(r'[^a-zA-Z0-9\s]', '', document.lower())
+
+    tokens = document_clean.split()
+    filtered_tokens = [token for token in tokens if token not in stop_words]
+    return filtered_tokens
+
+def build_paired_list(documents):
+    paired_list = []
+    for doc_id, document in enumerate(documents):
+        tokens = tokenize(document)
+        for token in tokens:
+            paired_list.append((token, doc_id))
+    return paired_list
+
+def sort_paired_list(paired_list):
+    return sorted(paired_list, key=lambda x: (x[0], x[1]))
+
+def build_inverted_index(sorted_paired_list):
+    inverted_index = {}
+    for term, doc_id in sorted_paired_list:
+        if term not in inverted_index:
+            inverted_index[term] = []
+        if doc_id not in inverted_index[term]:
+            inverted_index[term].append(doc_id)
+    return inverted_index
+
+def display_inverted_index(inverted_index):
+    for term, doc_ids in inverted_index.items():
+        print(f"{term}: {doc_ids}")
+
+paired_list = build_paired_list(documents)
+sorted_paired_list = sort_paired_list(paired_list)
+inverted_index = build_inverted_index(sorted_paired_list)
+display_inverted_index(inverted_index)
+
+print(sorted_paired_list)
+    </textarea>
+    <h1>Question 4: SPIMI</h1>
+    <textarea id="codeArea4" readonly>
+!pip install nltk
+import os
+from nltk.corpus import stopwords
+from google.colab import drive
+import os
+
+# Mount your Google Drive
+drive.mount('/content/drive')
+
+import os
+from collections import defaultdict
+from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
+import nltk
+
+# Download NLTK 'punkt' tokenizer if not already downloaded
+nltk.download('punkt')
+
+class SinglePassInMemoryIndexer:
+    def __init__(self, input_dir, output_file):
+        self.input_dir = input_dir
+        self.output_file = output_file
+        self.index = defaultdict(list)  # Dictionary to store the inverted index
+        self.docId_to_doc_map = {}  # Document ID to filename map
+        self.porter = PorterStemmer()  # Stemming
+
+    def tokenize_and_process(self, text):
+        # Tokenize and preprocess the text (lowercase and stemming)
+        tokens = word_tokenize(text.lower())
+        return [self.porter.stem(token) for token in tokens]
+
+    def build_index(self):
+        # Traverse the input directory and build the in-memory index
+        doc_id = 0
+
+        print("Building the in-memory index, please wait...")
+        for dirpath, dirnames, filenames in os.walk(self.input_dir):
+            filenames.sort()  # Sorting filenames to maintain consistency
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+
+                # Map document IDs to file names
+                self.docId_to_doc_map[doc_id] = filename
+
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+
+                # Tokenize and preprocess the text
+                tokens = self.tokenize_and_process(text)
+
+                # Add tokens to the index
+                for token in set(tokens):  # Set to avoid duplicate entries
+                    self.index[token].append(doc_id)
+
+                doc_id += 1
+
+        print("Indexing complete.")
+        self.write_index()
+
+    def write_index(self):
+        # Write the in-memory index to the output file
+        with open(self.output_file, 'w', encoding='utf-8') as f:
+            for term, doc_ids in sorted(self.index.items()):
+                doc_freq = len(doc_ids)
+                doc_ids_str = ','.join(map(str, sorted(set(doc_ids))))
+                f.write(f"{term} ({doc_freq}) - [{doc_ids_str}]\n")
+
+        print(f"Inverted index has been written to {self.output_file}")
+
+    def print_docId_map(self):
+        # Print the document ID to filename map
+        for doc_id, filename in self.docId_to_doc_map.items():
+            print(f"Document ID: {doc_id}, Filename: {filename}")
+
+
+# Specify the input directory and output file paths
+input_dir = "/content/drive/MyDrive/Colab Notebooks/File2"
+output_file = "/content/drive/MyDrive/Colab Notebooks/AP21110010047_output.txt/single_pass_output.txt"
+
+# Create the indexer object
+indexer = SinglePassInMemoryIndexer(input_dir, output_file)
+
+# Build the index
+indexer.build_index()
+
+# Print the Document ID to Filename map
+indexer.print_docId_map()
+    </textarea>
+    <h1>Question 5: Vector Space Model</h1>
+    <textarea id="codeArea5" readonly>
+        import os
+import math
+from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords
+import nltk
+
+nltk.download('punkt')
+nltk.download('stopwords')
+
+def preprocess_text(text):
+    """
+    Preprocesses text: tokenizes, converts to lowercase, removes stopwords, and applies stemming.
+    """
+    ps = PorterStemmer()
+    stop_words = set(stopwords.words('english'))
+    
+    words = word_tokenize(text)
+    # Preprocess: lowercase, remove stopwords, and apply stemming
+    preprocessed = [ps.stem(word.lower()) for word in words if word.isalnum() and word.lower() not in stop_words]
+    return preprocessed
+
+def build_index(file_path, doc_id, index, raw_tf):
+    """
+    Builds an inverted index and raw term frequency for a single document.
+    """
+    with open(file_path, 'r') as file:
+        text = file.read().strip()
+    
+    tokens = preprocess_text(text)
+    
+    # Compute raw term frequency (count) and update the index
+    term_count = {}
+    for word in tokens:
+        term_count[word] = term_count.get(word, 0) + 1
+    
+    for term, count in term_count.items():
+        # Update raw term frequency (count)
+        if term not in raw_tf:
+            raw_tf[term] = {}
+        raw_tf[term][doc_id] = count
+        
+        # Update Index
+        if term not in index:
+            index[term] = []
+        if doc_id not in index[term]:
+            index[term].append(doc_id)
+
+def compute_tf(raw_tf):
+    """
+    Converts raw term frequency to log-based TF using the formula: TF = 1 + log2(count).
+    """
+    tf = {}
+    for term, doc_counts in raw_tf.items():
+        tf[term] = {}
+        for doc_id, count in doc_counts.items():
+            if count > 0:
+                tf[term][doc_id] = 1 + math.log2(count)
+            else:
+                tf[term][doc_id] = 0
+    return tf
+
+def compute_idf(index, num_docs):
+    """
+    Computes the IDF for each term in the index.
+    """
+    idf = {}
+    for term, postings in index.items():
+        doc_freq = len(postings)
+        idf[term] = math.log(num_docs / doc_freq, 2)  # Log base 2
+    return idf
+
+def compute_tf_idf(tf, idf):
+    """
+    Computes the TF-IDF score for each term-document pair.
+    """
+    tf_idf = {}
+    for term, doc_tf in tf.items():
+        tf_idf[term] = {}
+        for doc_id, tf_value in doc_tf.items():
+            tf_idf[term][doc_id] = tf_value * idf.get(term, 0)
+    return tf_idf
+
+def compute_document_norms(tf_idf, num_docs):
+    """
+    Computes the document norms for cosine similarity.
+    """
+    doc_norms = {doc_id: 0 for doc_id in range(num_docs)}
+    for term, doc_weights in tf_idf.items():
+        for doc_id, weight in doc_weights.items():
+            doc_norms[doc_id] += weight ** 2
+    # Take the square root for the norms
+    for doc_id in doc_norms:
+        doc_norms[doc_id] = math.sqrt(doc_norms[doc_id])
+    return doc_norms
+
+def preprocess_query(query):
+    """
+    Preprocesses the query into tokens.
+    """
+    return preprocess_text(query)
+
+def calculate_query_vector(query_tokens, tf_idf, idf):
+    """
+    Calculates the TF-IDF vector for a query.
+    """
+    query_tf = {}
+    query_vector = {}
+    
+    # Calculate raw TF for query
+    for token in query_tokens:
+        query_tf[token] = query_tf.get(token, 0) + 1
+    
+    # Convert query TF to TF-IDF
+    for token, count in query_tf.items():
+        if token in idf:
+            tf = 1 + math.log2(count)
+            query_vector[token] = tf * idf[token]
+    return query_vector
+
+def calculate_cosine_similarity(query_vector, tf_idf, doc_norms):
+    """
+    Computes cosine similarity between the query and all documents.
+    """
+    doc_similarities = defaultdict(float)
+    query_norm = math.sqrt(sum(value ** 2 for value in query_vector.values()))
+    
+    for term, query_value in query_vector.items():
+        if term in tf_idf:
+            for doc_id, doc_value in tf_idf[term].items():
+                doc_similarities[doc_id] += query_value * doc_value  # Dot product
+    
+    # Normalize by query norm and document norms
+    for doc_id, dot_product in doc_similarities.items():
+        if query_norm > 0 and doc_norms[doc_id] > 0:
+            doc_similarities[doc_id] /= (query_norm * doc_norms[doc_id])
+        else:
+            doc_similarities[doc_id] = 0.0
+    
+    return sorted(doc_similarities.items(), key=lambda x: x[1], reverse=True)
+
+# Main execution
+input_dir = "/content/drive/MyDrive/fulldata"
+output_tf_idf_file = "/content/drive/MyDrive/output_dynamic/tf_idf.txt"
+
+doc_paths = [os.path.join(input_dir, file) for file in os.listdir(input_dir) if file.endswith('.txt')]
+
+# Initialize structures
+index = {}
+raw_tf = {}
+
+# Build the index and raw term frequency
+for doc_id, doc_path in enumerate(doc_paths):
+    build_index(doc_path, doc_id, index, raw_tf)
+
+# Convert raw term frequency to log-based TF
+tf = compute_tf(raw_tf)
+
+# Compute IDF
+num_docs = len(doc_paths)
+idf = compute_idf(index, num_docs)
+
+# Compute TF-IDF
+tf_idf = compute_tf_idf(tf, idf)
+
+# Compute Document Norms
+doc_norms = compute_document_norms(tf_idf, num_docs)
+
+# Query processing and similarity calculation
+query = "example query"
+query_tokens = preprocess_query(query)
+query_vector = calculate_query_vector(query_tokens, tf_idf, idf)
+similarities = calculate_cosine_similarity(query_vector, tf_idf, doc_norms)
+
+# Output results
+print("Query:", query)
+print("\nSimilarity Scores:")
+for doc_id, score in similarities:
+    print(f"Document {doc_id}: {score:.4f}")
+
+    </textarea>
+    <h1>Question 7: Binary Independence Model</h1>
+    <textarea id="codeArea7" readonly>
+        
+import os
+import math
+from collections import defaultdict
+
+
+def preprocess_text(text):
+ 
+    return text.lower().split()
+
+def build_index(file_paths):
+    """
+    Builds a binary index for all documents: Presence (1) or Absence (0) of terms.
+    """
+    index = defaultdict(lambda: defaultdict(int))
+    doc_term_counts = []
+    
+    for doc_id, file_path in enumerate(file_paths):
+        with open(file_path, 'r') as f:
+            text = f.read()
+        terms = set(preprocess_text(text)) 
+        
+        for term in terms:
+            index[doc_id][term] = 1 
+    
+    return index
+
+def compute_term_probabilities(index, num_docs):
+    """
+    Compute term probabilities for relevant and non-relevant documents.
+    """
+    term_probabilities = {}
+    terms = set()
+    for doc in index.values():
+        for t in doc.keys():
+            terms.add(t)
+
+    for term in terms:
+
+      term_in_docs = []
+      for doc_id, doc in index.items():
+          if term in doc:
+              term_in_docs.append(doc_id)
+
+      p_relevant = len(term_in_docs) / num_docs 
+      p_not_relevant = 1 - p_relevant  
+
+      term_probabilities[term] = (p_relevant, p_not_relevant)
+  
+    return term_probabilities
+
+def score_document(query_terms, doc_id, term_probabilities, index):
+    """
+    Score a document based on the Binary Independence Model for a given query.
+    """
+    score = 1
+    for term in query_terms:
+        if term in index[doc_id]:  # If term is present in the document
+            p_relevant, p_not_relevant = term_probabilities[term]
+            score *= p_relevant / p_not_relevant
+        else:  # If term is not in the document
+            p_relevant, p_not_relevant = term_probabilities[term]
+            score *= (1 - p_relevant) / (1 - p_not_relevant)
+    
+    return score
+
+# Example usage
+input_dir = "/path/to/documents"
+query = "example query"
+doc_paths = [os.path.join(input_dir, file) for file in os.listdir(input_dir) if file.endswith('.txt')]
+
+# Build index
+index = build_index(doc_paths)
+num_docs = len(doc_paths)
+
+# Compute term probabilities for relevant and non-relevant documents
+term_probabilities = compute_term_probabilities(index, num_docs)
+
+# Query processing
+query_terms = preprocess_text(query)
+
+# Score all documents
+doc_scores = {}
+for doc_id in index.keys():
+    doc_scores[doc_id] = score_document(query_terms, doc_id, term_probabilities, index)
+
+# Sort documents by score (higher score = more relevant)
+sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+
+# Print ranked documents
+for doc_id, score in sorted_docs:
+    print(f"Document {doc_id}: Score = {score:.4f}")
+
+    </textarea>
+    <h1>Question 6: Dynamic</h1>
+    <textarea id="codeArea6" readonly>
+      
+import os
+from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords
+import nltk
+
+nltk.download('punkt')
+nltk.download('stopwords')
+
+def preprocess_text(text):
+    ps = PorterStemmer()
+    stop_words = set(stopwords.words('english'))
+    
+    words = word_tokenize(text)
+
+    preprocessed = [ps.stem(word.lower()) for word in words if word.isalnum() and word.lower() not in stop_words]
+    return preprocessed
+
+def build_index(file_path, doc_id):
+    with open(file_path, 'r') as file:
+        text = file.read().strip()
+    
+    tokens = preprocess_text(text)
+    index = {}
+    for word in tokens:
+        if word not in index:
+            index[word] = []
+        if doc_id not in index[word]:
+            index[word].append(doc_id)
+    return index
+
+def merge_indexes(index1, index2):
+    merged_index = {}
+    for key in set(index1.keys()).union(index2.keys()):
+        merged_index[key] = sorted(set(index1.get(key, []) + index2.get(key, [])))
+    return merged_index
+
+def logarithmic_merge(indexes):
+    while len(indexes) > 1 and len(indexes) % 2 == 0:
+        idx2 = indexes.pop()
+        idx1 = indexes.pop()
+        indexes.append(merge_indexes(idx1, idx2))
+    return indexes[0]
+
+def create_dynamic_index(doc_paths):
+    indexes = []
+    for doc_id, doc_path in enumerate(doc_paths):
+        document_index = build_index(doc_path, doc_id)
+        indexes.append(document_index)
+        if len(indexes) > 1 and len(indexes) % 2 == 0:
+            indexes = [logarithmic_merge(indexes)]
+    return indexes[0] if indexes else {}
+
+def save_index_to_file(index, output_path):
+    """
+    Saves the index to a file.
+    """
+    with open(output_path, 'w') as f:
+        f.write("Term\t\tDoc.Freq.\t→ Postings Lists\n")
+        f.write("------------------------------------------------\n")
+        for term, postings in sorted(index.items()):
+            doc_freq = len(postings)
+            posting_str = " → ".join(map(str, postings))
+            f.write(f"{term:<8}\t{doc_freq:<10}\t→ {posting_str}\n")
+
+
+# Main execution
+input_dir = "/content/drive/MyDrive/fulldata"
+output_file = "/content/drive/MyDrive/output_dynamic/logarithmicmergeindexer_Output.txt"
+
+doc_paths = [os.path.join(input_dir, file) for file in os.listdir(input_dir) if file.endswith('.txt')]
+
+final_index = create_dynamic_index(doc_paths)
+save_index_to_file(final_index, output_file)
+
+
+
+    </textarea>
+    <h1>Question 7: Binary Independence Model</h1>
+    <textarea id="codeArea7" readonly>
+        
+import os
+import math
+from collections import defaultdict
+
+
+def preprocess_text(text):
+ 
+    return text.lower().split()
+
+def build_index(file_paths):
+    """
+    Builds a binary index for all documents: Presence (1) or Absence (0) of terms.
+    """
+    index = defaultdict(lambda: defaultdict(int))
+    doc_term_counts = []
+    
+    for doc_id, file_path in enumerate(file_paths):
+        with open(file_path, 'r') as f:
+            text = f.read()
+        terms = set(preprocess_text(text)) 
+        
+        for term in terms:
+            index[doc_id][term] = 1 
+    
+    return index
+
+def compute_term_probabilities(index, num_docs):
+    """
+    Compute term probabilities for relevant and non-relevant documents.
+    """
+    term_probabilities = {}
+    terms = set()
+    for doc in index.values():
+        for t in doc.keys():
+            terms.add(t)
+
+    for term in terms:
+
+      term_in_docs = []
+      for doc_id, doc in index.items():
+          if term in doc:
+              term_in_docs.append(doc_id)
+
+      p_relevant = len(term_in_docs) / num_docs 
+      p_not_relevant = 1 - p_relevant  
+
+      term_probabilities[term] = (p_relevant, p_not_relevant)
+  
+    return term_probabilities
+
+def score_document(query_terms, doc_id, term_probabilities, index):
+    """
+    Score a document based on the Binary Independence Model for a given query.
+    """
+    score = 1
+    for term in query_terms:
+        if term in index[doc_id]:  # If term is present in the document
+            p_relevant, p_not_relevant = term_probabilities[term]
+            score *= p_relevant / p_not_relevant
+        else:  # If term is not in the document
+            p_relevant, p_not_relevant = term_probabilities[term]
+            score *= (1 - p_relevant) / (1 - p_not_relevant)
+    
+    return score
+
+# Example usage
+input_dir = "/path/to/documents"
+query = "example query"
+doc_paths = [os.path.join(input_dir, file) for file in os.listdir(input_dir) if file.endswith('.txt')]
+
+# Build index
+index = build_index(doc_paths)
+num_docs = len(doc_paths)
+
+# Compute term probabilities for relevant and non-relevant documents
+term_probabilities = compute_term_probabilities(index, num_docs)
+
+# Query processing
+query_terms = preprocess_text(query)
+
+# Score all documents
+doc_scores = {}
+for doc_id in index.keys():
+    doc_scores[doc_id] = score_document(query_terms, doc_id, term_probabilities, index)
+
+# Sort documents by score (higher score = more relevant)
+sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+
+# Print ranked documents
+for doc_id, score in sorted_docs:
+    print(f"Document {doc_id}: Score = {score:.4f}")
+
+    </textarea>
+    <h1>Question 8: SVM</h1>
+    <textarea id="codeArea8" readonly>
+      
+import os
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.svm import LinearSVC
+from sklearn.metrics import classification_report, accuracy_score
+
+# Path to the folder containing subfolders for each label
+DATA_FOLDER = "path_to_your_folder"
+
+# Step 1: Load text data and labels
+def load_data(data_folder):
+    texts = []
+    labels = []
+    for label in os.listdir(data_folder):
+        label_folder = os.path.join(data_folder, label)
+        if os.path.isdir(label_folder):
+            for filename in os.listdir(label_folder):
+                file_path = os.path.join(label_folder, filename)
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    texts.append(file.read())
+                    labels.append(label)
+    return texts, labels
+
+documents, labels = load_data(DATA_FOLDER)
+
+# Step 2: Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(documents, labels, test_size=0.3, random_state=42)
+
+# Step 3: Vectorize the text data using TfidfVectorizer
+vectorizer = TfidfVectorizer(stop_words='english', max_features=10000)  # Adjust features as needed
+X_train_vectors = vectorizer.fit_transform(X_train)
+X_test_vectors = vectorizer.transform(X_test)
+
+# Step 4: Train the SVM classifier
+classifier = LinearSVC()
+classifier.fit(X_train_vectors, y_train)
+
+# Step 5: Make predictions on the test data
+y_pred = classifier.predict(X_test_vectors)
+
+# Step 6: Evaluate the model
+print("Classification Report:\n", classification_report(y_test, y_pred))
+print("Accuracy:", accuracy_score(y_test, y_pred))
+
+
+    </textarea>
+    <h1>Question 9: BSBI</h1>
+    <textarea id="codeArea9" readonly>
+# BSBI
+
+import os, sys
+from collections import defaultdict, deque
+from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize
+import nltk
+from string import punctuation
+
+nltk.download('punkt')
+
+class BSBI_Index:
+    def _init_(self, input_dir, block_size, output_dir):
+        self.input_dir, self.block_size, self.output_dir = input_dir, block_size, output_dir
+        self.index_map, self.porter = defaultdict(list), PorterStemmer()
+
+    def create_index(self):
+        for i, filename in enumerate(sorted(os.listdir(self.input_dir))):
+            path = os.path.join(self.input_dir, filename)
+            if os.path.getsize(path) > self.block_size:
+                sys.exit(f"File '{filename}' exceeds block size limit.")
+            for term in self.process_document(path):
+                self.index_map[term].append(i)
+            if sys.getsizeof(self.index_map) > self.block_size:
+                self.write_block(); self.index_map.clear()
+        self.merge_blocks()
+        print("Indexing complete!")
+
+    def process_document(self, filepath):
+        with open(filepath) as f:
+            return [self.porter.stem(t.strip(punctuation)) for t in word_tokenize(f.read().lower()) if t.isalnum()]
+
+    def write_block(self):
+        with open(f"{self.output_dir}/block{len(os.listdir(self.output_dir))}.txt", 'w') as f:
+            f.writelines(f"{term} {' '.join(map(str, doc_ids))}\n" for term, doc_ids in sorted(self.index_map.items()))
+
+    def merge_blocks(self):
+        queue = deque(sorted(os.listdir(self.output_dir)))
+        while len(queue) > 1:
+            f1, f2 = queue.popleft(), queue.popleft()
+            with open(os.path.join(self.output_dir, f1)) as fa, open(os.path.join(self.output_dir, f2)) as fb, open(f"{self.output_dir}/merged{len(queue)}.txt", 'w') as fm:
+                line_a, line_b = fa.readline(), fb.readline()
+                while line_a and line_b:
+                    term_a, docs_a = line_a.split(maxsplit=1)
+                    term_b, docs_b = line_b.split(maxsplit=1)
+                    if term_a < term_b: fm.write(line_a); line_a = fa.readline()
+                    elif term_a > term_b: fm.write(line_b); line_b = fb.readline()
+                    else: fm.write(f"{term_a} {docs_a} {docs_b}\n"); line_a, line_b = fa.readline(), fb.readline()
+                fm.writelines(fa if line_a else fb)
+            os.remove(os.path.join(self.output_dir, f1)); os.remove(os.path.join(self.output_dir, f2))
+            queue.append(f"{self.output_dir}/merged{len(queue)}.txt")
+
+        with open(queue.pop()) as f, open(f"{self.output_dir}/output.txt", 'w') as out:
+            out.writelines(f"{term} ({len(set(doc_ids))}) - {sorted(set(doc_ids), key=int)}\n" for line in f for term, *doc_ids in [line.split()])
+
+# Run the indexer
+input_dir = "/content/drive/MyDrive/Colab Notebooks/1000_doc"
+output_dir = "/content/drive/MyDrive/Colab Notebooks/sample_output"
+block_size = int(input("Enter Block size in M-Byte ")) * (1024 ** 2)
+
+BSBI_Index(input_dir, block_size, output_dir).create_index()
+
+if input("Delete intermediate files? y/n: ").lower() == "y":
+    for file in os.listdir(output_dir):
+        if not file.endswith("output.txt"):
+            os.remove(os.path.join(output_dir, file))
+
+    </textarea>
+    <script>
+        // Adjust the textarea height for all textareas on the page
+        window.onload = function() {
+            document.querySelectorAll("textarea").forEach(textarea => {
+                textarea.style.height = textarea.scrollHeight + "px";
+            });
+        };
+    </script>
+</body>
+</html>
